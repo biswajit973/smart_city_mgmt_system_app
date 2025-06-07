@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Joda Municipality",
+    "slug": "my-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.akram8190.JodaMuncipality"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "10ba4677-f88e-43ae-a008-6715dc70f4cf"
+      }
+    },
+    "splash": {
+      "image": "./assets/images/joda-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#181A20"
+    }
+  }
+}
