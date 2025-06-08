@@ -1,194 +1,73 @@
-# 🧪 Odisha Municipal Services App - Testing Document
+# 📱 Joda Municipality – Odisha Municipal Services App
 
-A comprehensive QA checklist for the **Odisha Municipal Services** mobile application.  
-This app provides services such as **waste management**, **Kalyan Mandap bookings**, and **pollution complaint management**.
-
----
-
-## 🚀 Test Environment Requirements
-
-- 📱 Mobile device (iOS / Android)  
-- ⚙️ Expo development environment  
-- 🌐 Active internet connection  
-- 🔐 Valid user credentials  
+**Version:** 1.0.0  
+Empowering Odisha citizens with seamless digital municipal services.
 
 ---
 
-## ✅ Test Coverage
+## 📚 Table of Contents
 
-<details>
-  <summary><strong>1. Authentication Testing</strong></summary>
-
-### 1.1 User Registration (`Signup.js`)
-- [ ] Valid email format validation  
-- [ ] Password strength requirements  
-- [ ] Successful user registration  
-- [ ] Duplicate email handling  
-- [ ] OTP functionality (if implemented)  
-
-### 1.2 Login (`Login.js`)
-- [ ] Valid credentials login  
-- [ ] Invalid credentials handling  
-- [ ] "Remember Me" functionality  
-- [ ] Password reset flow  
-- [ ] Token storage and management  
-
-### 1.3 Forgot Password (`ForgotPassword.js`)
-- [ ] Email validation  
-- [ ] Reset link/OTP delivery  
-- [ ] Password update process  
-- [ ] Error handling  
-
-</details>
-
-<details>
-  <summary><strong>2. Waste Management Testing</strong></summary>
-
-### 2.1 Personal Waste Form (`PersonalWasteForm.js`)
-- [ ] Waste type selection  
-- [ ] Address input (house number, floor, block)  
-- [ ] Image upload (max 5)  
-- [ ] Location selection  
-- [ ] Time slot selection  
-- [ ] Payment method selection  
-- [ ] Form submission  
-
-### 2.2 Public Waste Form (`PublicWasteForm.js`)
-- [ ] Waste type selection  
-- [ ] Location picker  
-- [ ] Image upload  
-- [ ] Description input  
-- [ ] Contact number validation  
-- [ ] Form submission  
-
-</details>
-
-<details>
-  <summary><strong>3. Kalyan Mandap Booking Testing</strong></summary>
-
-### 3.1 Mandap Listing (`KalyanMandapBooking/index.js`)
-- [ ] Mandap list loading  
-- [ ] Image gallery functionality  
-- [ ] Filter/search options (if any)  
-- [ ] Mandap details display  
-
-### 3.2 Mandap Booking (`KalyanMandapBooking/mandap-details.js`)
-- [ ] Date selection  
-- [ ] Time slot booking  
-- [ ] Occasion input  
-- [ ] Number of people input  
-- [ ] Payment process  
-- [ ] Booking confirmation  
-
-</details>
-
-<details>
-  <summary><strong>4. Pollution Complaint Testing</strong></summary>
-
-### 4.1 Pollution Category Selection (`PollutionCategorySelect.js`)
-- [ ] Category list loading  
-- [ ] Category selection  
-- [ ] Subcategory display  
-- [ ] Navigation flow  
-
-### 4.2 Pollution Complaint Form (`PollutionComplaintForm.js`)
-- [ ] Pollution type selection  
-- [ ] Cause selection  
-- [ ] Location input  
-- [ ] Image upload  
-- [ ] Description input  
-- [ ] Form submission  
-
-</details>
-
-<details>
-  <summary><strong>5. Bookings Management Testing</strong></summary>
-
-### 5.1 Bookings List (`Bookings.js`)
-- [ ] Booking list loading  
-- [ ] Filtering functionality  
-- [ ] Booking status display  
-- [ ] Booking details access  
-- [ ] Pagination (if implemented)  
-
-### 5.2 Booking Details (`BookingDetails.js`)
-- [ ] Booking details display  
-- [ ] Status updates  
-- [ ] Cancellation process  
-- [ ] Payment status display  
-
-</details>
-
-<details>
-  <summary><strong>6. General UI/UX Testing</strong></summary>
-
-### 6.1 Navigation
-- [ ] Tab navigation  
-- [ ] Back button functionality  
-- [ ] Deep linking (if implemented)  
-- [ ] Navigation stack management  
-
-### 6.2 Components
-- [ ] `FloatingLabelInput` functionality  
-- [ ] Toast messages  
-- [ ] Modal operations  
-- [ ] Loading states  
-- [ ] Error boundary handling  
-
-### 6.3 Responsiveness
-- [ ] Different screen sizes  
-- [ ] Keyboard handling  
-- [ ] Orientation changes  
-- [ ] Text scaling  
-
-</details>
-
-<details>
-  <summary><strong>7. API Integration Testing</strong></summary>
-
-### 7.1 API Endpoints
-- [ ] Authentication APIs  
-- [ ] Waste management APIs  
-- [ ] Mandap booking APIs  
-- [ ] Pollution complaint submission  
-- [ ] Image upload API  
-
-### 7.2 Error Handling
-- [ ] Network error handling  
-- [ ] Token expiration  
-- [ ] Timeout scenarios  
-- [ ] Error message display  
-
-</details>
-
-<details>
-  <summary><strong>8. Performance Testing</strong></summary>
-
-### 8.1 Load Testing
-- [ ] App launch time  
-- [ ] Image loading  
-- [ ] Form submission speed  
-- [ ] List scrolling  
-
-### 8.2 Memory Usage
-- [ ] Memory with multiple images  
-- [ ] Cleanup on navigation  
-- [ ] Cache management  
-
-</details>
+- [📘 About](#about)
+- [✨ Features](#features)
+- [⚙️ Installation](#installation)
+- [🚀 Usage](#usage)
+- [🧰 Scripts](#scripts)
+- [📦 Dependencies](#dependencies)
+- [🕓 Version History](#version-history)
+- [🧪 Testing](#testing)
+- [🤝 Contributing](#contributing)
 
 ---
 
-## 🐞 Bug Reporting Template
+## 📘 About
 
-```txt
-### Bug Description
-- Component:
-- Expected Behavior:
-- Actual Behavior:
-- Steps to Reproduce:
-- Environment:
-  - Device:
-  - OS Version:
-  - App Version:
-- Screenshots/Videos:
+**Joda Municipality** is a modern React Native (Expo) mobile app tailored for the citizens of Odisha. It offers a wide array of municipal services including:
+
+- Waste management bookings  
+- Kalyan Mandap event hall reservations  
+- Pollution and grievance complaint submission  
+
+The goal is to build a **cleaner**, **greener**, and **more responsive** Joda.
+
+---
+
+## ✨ Features
+
+- 🔐 **User Authentication**  
+  Secure signup, login, OTP verification, and password reset.
+
+- 🗑️ **Waste Management**  
+  Book **personal** or **public** waste pickups, upload up to 5 images, select address and time slot, and pay online.
+
+- 🏛️ **Kalyan Mandap Booking**  
+  View available community halls, filter listings, and complete online booking.
+
+- 🚛 **Cesspool Services**  
+  Raise cesspool cleaning requests and track request status.
+
+- 🌫️ **Pollution Complaint**  
+  File pollution complaints by selecting category, location, and uploading images.
+
+- 📣 **Grievance Redressal**  
+  Register civic complaints and track resolution status.
+
+- 🔔 **In-app Notifications**  
+  Stay updated with booking confirmations and service alerts.
+
+- 🆘 **Help & Support**  
+  Access contact information for assistance and escalation.
+
+---
+
+## ⚙️ Installation
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd my-app
+
+# 2. Install dependencies
+npm install
+
+# 3. Start development server
+npx expo start
