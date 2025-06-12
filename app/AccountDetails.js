@@ -10,7 +10,7 @@ import MaterialTextInput from '../components/ui/MaterialTextInput';
 
 export default function AccountDetailsScreen() {
   const router = useRouter();
-  const { setNotifModalVisible } = useNotification();
+  const { setNotifModalVisible, notificationCount } = useNotification();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [editState, setEditState] = useState({
     first_name: '',
@@ -94,11 +94,17 @@ export default function AccountDetailsScreen() {
     }
     setUpdating(false);
   };
-
   // Add logout handler
   const handleLogout = async () => {
     try {
-      await AsyncStorage.removeItem('access');
+      await AsyncStorage.multiRemove([
+        'access',
+        'refresh',
+        'first_name', 
+        'last_name',
+        'email',
+        'user_id'
+      ]);
       showToast('success', 'Logged out', 'You have been logged out successfully.');
       setTimeout(() => {
         router.replace('/BookingServices');
@@ -121,21 +127,23 @@ export default function AccountDetailsScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <TouchableOpacity onPress={() => setNotifModalVisible(true)} style={{ position: 'relative' }}>
             <Ionicons name="notifications-outline" size={28} color={"rgb(18, 0, 0)"} />
-            <View style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              backgroundColor: '#E53935',
-              borderRadius: 8,
-              minWidth: 16,
-              height: 16,
-              justifyContent: 'center',
-              alignItems: 'center',
-              paddingHorizontal: 3,
-              zIndex: 2,
-            }}>
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>3</Text>
-            </View>
+            {notificationCount > 0 && (
+              <View style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                backgroundColor: '#E53935',
+                borderRadius: 8,
+                minWidth: 16,
+                height: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 3,
+                zIndex: 2,
+              }}>
+                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{notificationCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>

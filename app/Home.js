@@ -15,7 +15,7 @@ const ORANGE = '#E87A1D';
 
 export default function Home() {
   const router = useRouter();
-  const { setNotifModalVisible } = useNotification();
+  const { setNotifModalVisible, notificationCount, refreshNotifications } = useNotification();
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -27,6 +27,35 @@ export default function Home() {
   const [wasteSuccessType, setWasteSuccessType] = useState(''); // 'public' or 'personal'
   const [pollutionModalVisible, setPollutionModalVisible] = useState(false);
   const [cesspoolModalVisible, setCesspoolModalVisible] = useState(false);
+
+  // Handle notification icon press
+  const handleNotificationPress = async () => {
+    setNotifModalVisible(true);
+  };
+
+  // Effect to sync notifications when component mounts
+  useEffect(() => {
+    const updateNotificationCount = async () => {
+      const diffStr = await AsyncStorage.getItem('notificationCountDiff');
+      const count = diffStr ? parseInt(diffStr, 10) : 0;
+      if (count > 0) {
+        await refreshNotifications();
+      }
+    };
+    updateNotificationCount();
+  }, [refreshNotifications]);
+
+  // Check justLoggedIn flag when component mounts
+  useEffect(() => {
+    const checkLoginState = async () => {
+      const justLoggedIn = await AsyncStorage.getItem('justLoggedIn');
+      if (justLoggedIn === 'true') {
+        setNotifModalVisible(true);
+        await AsyncStorage.removeItem('justLoggedIn');
+      }
+    };
+    checkLoginState();
+  }, [setNotifModalVisible]); // Add setNotifModalVisible as dependency
 
   const handleWasteModalOk = () => {
     setWasteModalVisible(false);
@@ -130,15 +159,24 @@ export default function Home() {
   const handleLogout = async () => {
     console.log('handleLogout function started');
     try {
-      console.log('Removing authToken...');
-      await AsyncStorage.removeItem('access');
-      console.log('access removed successfully.');
+      console.log('Removing auth data...');
+      await AsyncStorage.multiRemove([
+        'access',
+        'refresh',
+        'first_name',
+        'last_name',
+        'email',
+        'user_id'
+      ]);
+      console.log('Auth data removed successfully.');
       router.replace('/BookingServices');
     } catch (error) {
       console.error('Error during logout:', error);
       showToast('error', 'Logout failed', 'An error occurred while logging out.');
     }
   };
+
+
 
   if (checkingAuth) {
     return (
@@ -158,23 +196,27 @@ export default function Home() {
             {userLocation ? userLocation : locationError ? locationError : 'Detecting...'}
           </ThemedText>
         </View>
-        <TouchableOpacity style={{ marginBottom:3 }} onPress={() => setNotifModalVisible(true)}>
+        <TouchableOpacity 
+          style={{ marginBottom:3 }} 
+          onPress={handleNotificationPress}>
           <Ionicons name="notifications-outline" size={28} color={"rgb(18, 0, 0)"} />
-          <View style={{
-            position: 'absolute',
-            top: -4,
-            right: -4,
-            backgroundColor: '#E53935',
-            borderRadius: 8,
-            minWidth: 16,
-            height: 16,
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingHorizontal: 3,
-            zIndex: 2,
-          }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>3</Text>
-          </View>
+          {notificationCount > 0 && (
+            <View style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              backgroundColor: '#E53935',
+              borderRadius: 8,
+              minWidth: 16,
+              height: 16,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 3,
+              zIndex: 2,
+            }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{notificationCount > 99 ? '99+' : notificationCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
       {/* Only services section scrolls */}

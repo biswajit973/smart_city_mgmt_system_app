@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useNotification } from '../components/NotificationContext';
 import { ThemedText } from '../components/ThemedText';
 import { showToast } from '../components/toastHelper';
 import FloatingLabelInput from '../components/ui/FloatingLabelInput';
@@ -12,6 +13,7 @@ const ORANGE = '#E87A1D';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { refreshNotifications } = useNotification();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,6 +61,11 @@ export default function LoginScreen() {
         for (const [key, value] of Object.entries(data)) {
           await AsyncStorage.setItem(key, String(value));
         }
+        // Set justLoggedIn flag for Home screen logic
+        await AsyncStorage.setItem('justLoggedIn', 'true');
+        // Refresh notifications and badge count after login
+        await refreshNotifications();
+        console.log('Notifications refreshed after login');
         showToast('success', 'Login Successful!', 'Welcome back!');
         setTimeout(() => {
           setLoading(false);

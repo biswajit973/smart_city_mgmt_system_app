@@ -30,15 +30,14 @@ const SERVICE_TYPES = [
 
 export default function AllBookings() {
   const router = useRouter();
-  const { setNotifModalVisible } = useNotification();
+  const { setNotifModalVisible, notificationCount } = useNotification();
   const [accountModalVisible, setAccountModalVisible] = React.useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);  // Tab state: only 'active' or 'past'
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [tab, setTab] = useState('active');
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
-  // Remove handleTabChange, not needed. Use setTab('active') or setTab('past') directly.
 
   React.useLayoutEffect(() => {
     if (router?.setOptions) {
@@ -46,14 +45,19 @@ export default function AllBookings() {
     }
   }, [router]);
 
+  // Effect to check authentication state
   useEffect(() => {
     const checkAuth = async () => {
-      const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        router.replace('/Login');
-        showToast('success', 'Logged out', 'You have been logged out successfully.');
+      try {
+        const token = await AsyncStorage.getItem('access');
+        if (!token) {
+          router.replace('/Login');
+          return;
+        }
+        setCheckingAuth(false);
+      } catch (error) {
+        console.error('Error checking auth:', error);
       }
-      setCheckingAuth(false);
     };
     checkAuth();
   }, [router]);
@@ -98,16 +102,22 @@ export default function AllBookings() {
     };
     fetchBookings();
   }, [tab, typeFilter]);
-
   const handleLogout = async () => {
     setAccountModalVisible(false);
     try {
-      await AsyncStorage.removeItem('access');
+      await AsyncStorage.multiRemove([
+        'access',
+        'refresh',
+        'first_name',
+        'last_name',
+        'email',
+        'user_id'
+      ]);
       router.replace('/BookingServices');
     } catch (_error) {
       showToast('error', 'Logout failed', 'An error occurred while logging out.');
     }
-  };  // Status map for filtering after API fetch
+  };// Status map for filtering after API fetch
   const statusMap = {
     active: ['pending', 'scheduled'],
     past: ['completed', 'approved'],
@@ -182,21 +192,23 @@ export default function AllBookings() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <TouchableOpacity onPress={() => setNotifModalVisible(true)} style={{ position: 'relative' }}>
                 <Ionicons name="notifications-outline" size={28} color={"rgb(18, 0, 0)"} />
-                <View style={{
-                  position: 'absolute',
-                  top: -4,
-                  right: -4,
-                  backgroundColor: '#E53935',
-                  borderRadius: 8,
-                  minWidth: 16,
-                  height: 16,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingHorizontal: 3,
-                  zIndex: 2,
-                }}>
-                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>3</Text>
-                </View>
+                {notificationCount > 0 && (
+                  <View style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    backgroundColor: '#E53935',
+                    borderRadius: 8,
+                    minWidth: 16,
+                    height: 16,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 3,
+                    zIndex: 2,
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{notificationCount > 99 ? '99+' : notificationCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
             </View>

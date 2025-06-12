@@ -11,11 +11,17 @@ export default function LogoutScreen() {
     console.log('useEffect triggered in LogoutScreen');
     const doLogout = async () => {
       console.log('doLogout function started');
-      try {
-        // Clear all authentication and user data
-        console.log('Clearing AsyncStorage...');
-        await AsyncStorage.clear(); // Clear all keys for full logout
-        console.log('AsyncStorage cleared successfully.');
+      try {        // Only clear auth-related data, preserving notification state
+        console.log('Removing auth data...');
+        await AsyncStorage.multiRemove([
+          'access',
+          'refresh',
+          'first_name',
+          'last_name',
+          'email',
+          'user_id'
+        ]);
+        console.log('Auth data removed successfully.');
 
         // showToast('success', 'Logged out', 'You have been logged out successfully.');
         console.log('Redirecting to login page...');
