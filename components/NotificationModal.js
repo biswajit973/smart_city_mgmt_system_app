@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
+import LottieView from 'lottie-react-native';
 import React from 'react';
 import { ActivityIndicator, Dimensions, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Modal from 'react-native-modal';
+import { ThemedText } from '../components/ThemedText';
 import { useNotification } from './NotificationContext';
 
 const { height } = Dimensions.get('window');
@@ -18,11 +21,21 @@ export default function NotificationModal() {
   const [showRejectReason, setShowRejectReason] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState('');
   const [actionSuccess, setActionSuccess] = React.useState('');
+  // Payment Success Modal
+  const [showPaymentSuccess, setShowPaymentSuccess] = React.useState(false);
 
   React.useEffect(() => {
     if (notifModalVisible) {
       setModalLoading(true);
-      refreshNotifications().then(() => setModalLoading(false));
+      refreshNotifications()
+        .then(() => setModalLoading(false))
+        .catch((err) => {
+          setModalLoading(false);
+          // If fetch fails, redirect to login
+   
+        router.replace('/BookingServices');
+
+        });
     } else {
       setModalLoading(false);
     }
@@ -68,27 +81,45 @@ export default function NotificationModal() {
     setDetailsLoading(false);
   };
 
+  const playPaymentSuccessSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/sounds/payment_success.mp3')
+      );
+      await sound.playAsync();
+    } catch (_e) {
+      // Ignore sound errors
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPaymentSuccess(true);
+    await playPaymentSuccessSound();
+    setTimeout(() => {
+      setShowPaymentSuccess(false);
+      setNotifModalVisible(false);
+      router.push('/AllNotifications');
+    }, 1800);
+  };
+
   // Update renderNotificationCard to show correct border/label for paid, completed, approved, rejected
   const renderNotificationCard = ({ item, index }) => {
     const isPaid = item.payment_status && item.payment_status.toLowerCase() === 'completed';
-    const isRejected = item.payment_status && item.payment_status.toLowerCase() === 'rejected';
+    const isRejected = (item.payment_status && item.payment_status.toLowerCase() === 'rejected') || (item.status && item.status.toLowerCase() === 'rejected');
     const isComplaintCompleted = item.service_type === 'complaints' && item.category === 'booking' && item.status === 'completed';
     const isApproved = item.status && item.status.toLowerCase() === 'approved';
-    let cardBorder = {};
     let label = null;
     if (isPaid || isComplaintCompleted) {
-      cardBorder = { borderColor: '#4CAF50', borderWidth: 2 };
       label = <View style={styles.paidLabel}><Text style={styles.paidLabelText}>{isPaid ? 'PAID' : 'COMPLETED'}</Text></View>;
     } else if (isRejected) {
-      cardBorder = { borderColor: '#FF3B30', borderWidth: 2 };
       label = <View style={[styles.paidLabel, { backgroundColor: '#FF3B30' }]}><Text style={styles.paidLabelText}>REJECTED</Text></View>;
     } else if (isApproved) {
-      cardBorder = { borderColor: '#FFA000', borderWidth: 2 };
+      label = null;
     }
     // Non-clickable for paid/completed/rejected
     if (isPaid || isComplaintCompleted || isRejected) {
       return (
-        <View style={[styles.card, cardBorder, item.is_new ? styles.cardNew : null]}>
+        <View style={[styles.card, item.is_new ? styles.cardNew : null]}>
           <View style={{ flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.iconCircleBox}>
               <Text style={styles.iconCircle}>{getCategoryIcon(item.category)}</Text>
@@ -115,8 +146,18 @@ export default function NotificationModal() {
     // Clickable for all others: open details modal and fetch details
     return (
       <TouchableOpacity
-        style={[styles.card, cardBorder, item.is_new ? styles.cardNew : null]}
+        style={[styles.card, item.is_new ? styles.cardNew : null]}
         onPress={() => {
+          if (
+            isPaid ||
+            isComplaintCompleted ||
+            isRejected ||
+            item.service_type === 'complaints' ||
+            item.category === 'booking'
+          ) {
+            // Do not open modal for paid, completed, rejected, complaints, or booking category (public request)
+            return;
+          }
           setSelectedNotification(item);
           setDetailsLoading(true);
           fetchNotificationDetails(item);
@@ -204,14 +245,12 @@ export default function NotificationModal() {
     setActionSuccess("");
     setDetailsError("");
     try {
-      // Build URL with query parameters as backend expects
       const url = `https://mobile.wemakesoftwares.com/api/user/update-payment-success/?booking_id=${encodeURIComponent(selectedNotification.data.booking_id)}&service_type=${encodeURIComponent(selectedNotification.data.service_type)}`;
       const token = await AsyncStorage.getItem('access');
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-      // No body needed, backend expects params in query string
       const res = await fetch(url, { method: 'PUT', headers });
       const result = await res.json();
       console.log('Payment update result:', result);
@@ -220,9 +259,10 @@ export default function NotificationModal() {
         setDetailsLoading(false);
         return;
       }
+      // Close the payment modal first
+      setSelectedNotification(null);
       setActionSuccess('Payment successful!');
-      await refreshNotifications();
-      await fetchNotificationDetails(selectedNotification.data);
+      handlePaymentSuccess();
     } catch (_e) {
       setDetailsError('Payment failed. Please try again.');
     }
@@ -255,9 +295,9 @@ export default function NotificationModal() {
       const res = await fetch(url, { method: 'PUT', headers, body: formData });
       const result = await res.json();
       if (!res.ok || result.status === false) {
-        throw new Error(result.message || 'Rejection failed');
+        throw new Error(result.message || 'Request rejection failed');
       }
-      setActionSuccess('Rejection submitted!');
+      setActionSuccess('Request rejected successfully');
       setShowRejectReason(false);
       setRejectReason('');
       await refreshNotifications();
@@ -268,195 +308,225 @@ export default function NotificationModal() {
     setDetailsLoading(false);
   };
 
-  const renderDetailsModal = () => (
-    <Modal
-      isVisible={!!selectedNotification}
-      onBackdropPress={() => {
-        setSelectedNotification(null);
-        setShowRejectReason(false);
-        setRejectReason('');
-        setActionSuccess('');
-        setDetailsError('');
-      }}
-      onSwipeComplete={() => {
-        setSelectedNotification(null);
-        setShowRejectReason(false);
-        setRejectReason('');
-        setActionSuccess('');
-        setDetailsError('');
-      }}
-      swipeDirection={["down"]}
-      style={{ justifyContent: 'center', alignItems: 'center', margin: 0 }}
-      backdropTransitionOutTiming={0}
-      propagateSwipe
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      swipeThreshold={100}
-      transparent
-    >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 24, minWidth: 320, maxWidth: 360, alignItems: 'flex-start', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 12 }}>
-          {detailsLoading ? (
-            <ActivityIndicator size="large" color="#E87A1D" style={{ margin: 24 }} />
-          ) : detailsError ? (
-            <Text style={{ color: 'red', marginBottom: 12 }}>{detailsError}</Text>
-          ) : selectedNotification && selectedNotification.data ? (
-            <>
-              <Text style={{ fontWeight: 'bold', fontSize: 20, marginBottom: 8, color: '#181A20' }}>
-                {selectedNotification.data.category_name || selectedNotification.data.service_type}
-              </Text>
-              <Text style={{ color: '#888', marginBottom: 8, fontWeight: 'bold', fontSize: 15 }}>
-                {typeof selectedNotification.data.status === 'string' && selectedNotification.data.status.length > 0
-                  ? selectedNotification.data.status.charAt(0).toUpperCase() + selectedNotification.data.status.slice(1)
-                  : ''}
-              </Text>
-              <Text style={{ marginBottom: 8, color: '#222', fontSize: 16 }}>{selectedNotification.data.description}</Text>
-              {selectedNotification.data.subcategory_name && (
-                <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Subcategory: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.subcategory_name}</Text></Text>
-              )}
-              {selectedNotification.data.location && (
-                <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Location: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.location}</Text></Text>
-              )}
-              {selectedNotification.data.address && (
-                <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Address: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.address}</Text></Text>
-              )}
-              {selectedNotification.data.complaint_images && selectedNotification.data.complaint_images.length > 0 && (
-                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                  {selectedNotification.data.complaint_images.map((img, idx) => (
-                    <View key={idx} style={{ marginRight: 8 }}>
-                      <Image source={{ uri: `https://mobile.wemakesoftwares.com${img.image}` }} style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: '#eee' }} />
+  const renderDetailsModal = () => {
+    // Only show details/payment modal if notifModalVisible is true, showPaymentSuccess is not showing, and a notification is actually selected
+    if (!notifModalVisible || showPaymentSuccess || !selectedNotification) {
+      return null;
+    }
+    return (
+      <Modal
+        isVisible={!!selectedNotification}
+        onBackdropPress={() => {
+          setSelectedNotification(null);
+          setShowRejectReason(false);
+          setRejectReason('');
+          setActionSuccess('');
+          setDetailsError('');
+        }}
+        onSwipeComplete={() => {
+          setSelectedNotification(null);
+          setShowRejectReason(false);
+          setRejectReason('');
+          setActionSuccess('');
+          setDetailsError('');
+        }}
+        swipeDirection={["down"]}
+        style={{ justifyContent: 'center', alignItems: 'center', margin: 0 }}
+        backdropTransitionOutTiming={0}
+        propagateSwipe
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+        swipeThreshold={100}
+        transparent
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 24, minWidth: 320, maxWidth: 360, alignItems: 'flex-start', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 12 }}>
+            {detailsLoading ? (
+              <ActivityIndicator size="large" color="#E87A1D" style={{ margin: 24 }} />
+            ) : detailsError ? (
+              <Text style={{ color: 'red', marginBottom: 12 }}>{detailsError}</Text>
+            ) : selectedNotification && selectedNotification.data ? (
+              <>
+                <Text style={{ fontWeight: 'bold', fontSize: 20, marginBottom: 8, color: '#181A20' }}>
+                  {selectedNotification.data.category_name || selectedNotification.data.service_type}
+                </Text>
+                <Text style={{ color: '#888', marginBottom: 8, fontWeight: 'bold', fontSize: 15 }}>
+                  {typeof selectedNotification.data.status === 'string' && selectedNotification.data.status.length > 0
+                    ? selectedNotification.data.status.charAt(0).toUpperCase() + selectedNotification.data.status.slice(1)
+                    : ''}
+                </Text>
+                <Text style={{ marginBottom: 8, color: '#222', fontSize: 16 }}>{selectedNotification.data.description}</Text>
+                {selectedNotification.data.subcategory_name && (
+                  <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Subcategory: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.subcategory_name}</Text></Text>
+                )}
+                {selectedNotification.data.location && (
+                  <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Location: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.location}</Text></Text>
+                )}
+                {selectedNotification.data.address && (
+                  <Text style={{ marginBottom: 8, color: '#444', fontSize: 15 }}>Address: <Text style={{ fontWeight: 'bold' }}>{selectedNotification.data.address}</Text></Text>
+                )}
+                {selectedNotification.data.complaint_images && selectedNotification.data.complaint_images.length > 0 && (
+                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                    {selectedNotification.data.complaint_images.map((img, idx) => (
+                      <View key={idx} style={{ marginRight: 8 }}>
+                        <Image source={{ uri: `https://mobile.wemakesoftwares.com${img.image}` }} style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1}} />
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {actionSuccess === 'Payment successful!' ? null : actionSuccess ? (
+                  <Text style={{ color: 'green', fontWeight: 'bold', fontSize: 16, marginVertical: 12, alignSelf: 'center' }}>{actionSuccess}</Text>
+                ) : showRejectReason ? (
+                  <>
+                    <Text style={{ marginTop: 12, marginBottom: 4, fontWeight: 'bold', color: '#181A20' }}>Reason for rejection:</Text>
+                    <View style={{ width: 260, marginBottom: 8 }}>
+                      <View style={{
+                        borderWidth: 1,
+                
+                        borderRadius: 10,
+                        backgroundColor: '#fff',
+                        padding: 0,
+                        overflow: 'hidden',
+                      }}>
+                        <TextInput
+                          value={rejectReason}
+                          onChangeText={setRejectReason}
+                          placeholder="Enter reason..."
+                          placeholderTextColor="#888"
+                          multiline
+                          numberOfLines={4}
+                          style={{
+                            minHeight: 80,
+                            fontSize: 16,
+                            color: '#181A20',
+                            padding: 12,
+                            textAlignVertical: 'top',
+                            fontFamily: 'System',
+                          }}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
                     </View>
-                  ))}
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#181A20', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36, alignSelf: 'center', marginTop: 4 }}
+                      onPress={handleReject}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Submit</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  selectedNotification.data.status !== 'completed' && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 16, gap: 12 }}>
+                      <TouchableOpacity
+                        style={{ backgroundColor: '#181A20', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36 }}
+                        onPress={handlePay}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Pay</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ backgroundColor: '#bbb', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36 }}
+                        onPress={() => setShowRejectReason(true)}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
+                )}
+              </>
+            ) : null}
+            <TouchableOpacity onPress={() => {
+              setSelectedNotification(null);
+              setShowRejectReason(false);
+              setRejectReason('');
+              setActionSuccess('');
+              setDetailsError('');
+            }} style={{ marginTop: 18, alignSelf: 'center' }}>
+              <Text style={{ color: '#E87A1D', fontWeight: 'bold', fontSize: 16 }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  // Separate payment success modal
+  const renderPaymentSuccessModal = () => {
+    if (!showPaymentSuccess) return null;
+    
+    return (
+      <Modal isVisible={true} style={{ margin: 0 }} backdropOpacity={1} animationIn="fadeIn" animationOut="fadeOut">
+        <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+          <LottieView
+            source={require('../assets/Animation - 1747848194852.json')}
+            autoPlay
+            loop={false}
+            style={{ width: 220, height: 220 }}
+            resizeMode="cover"
+          />
+          <ThemedText style={{ fontSize: 26, fontWeight: 'bold', color: '#19e38a', marginTop: 32, textAlign: 'center' }}>Payment Successful!</ThemedText>
+        </View>
+      </Modal>
+    );
+  };
+
+  // Main render method should return both modals
+  return (
+    <>
+      <Modal
+        isVisible={notifModalVisible}
+        onBackdropPress={() => setNotifModalVisible(false)}
+        onSwipeComplete={() => setNotifModalVisible(false)}
+        swipeDirection={["down"]}
+        style={{ justifyContent: 'flex-end', margin: 0 }}
+        backdropTransitionOutTiming={0}
+        propagateSwipe
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+        swipeThreshold={100}
+      >
+        <View style={styles.sheet}>
+          <View style={styles.dragIndicator} />
+          <View style={styles.headerRow}>
+            <Text style={styles.header}>Notifications</Text>
+          </View>
+          {modalLoading || loading ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+              <ActivityIndicator size="large" color="#888" />
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              {(newNotifications.length > 0 || oldNotifications.length > 0) ? (
+                renderFlatListWithLabels()
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>📬</Text>
+                  <Text style={styles.emptyTitle}>No notifications yet</Text>
+                  <Text style={styles.emptyDesc}>Your notification will appear here once you&apos;ve received them.</Text>
                 </View>
               )}
-              {actionSuccess ? (
-                <Text style={{ color: 'green', fontWeight: 'bold', fontSize: 16, marginVertical: 12, alignSelf: 'center' }}>{actionSuccess}</Text>
-              ) : showRejectReason ? (
-                <>
-                  <Text style={{ marginTop: 12, marginBottom: 4, fontWeight: 'bold', color: '#181A20' }}>Reason for rejection:</Text>
-                  <View style={{ width: 260, marginBottom: 8 }}>
-                    <View style={{
-                      borderWidth: 1,
-                      borderColor: '#181A20',
-                      borderRadius: 10,
-                      backgroundColor: '#fff',
-                      padding: 0,
-                      overflow: 'hidden',
-                    }}>
-                      <TextInput
-                        value={rejectReason}
-                        onChangeText={setRejectReason}
-                        placeholder="Enter reason..."
-                        placeholderTextColor="#888"
-                        multiline
-                        numberOfLines={4}
-                        style={{
-                          minHeight: 80,
-                          fontSize: 16,
-                          color: '#181A20',
-                          padding: 12,
-                          textAlignVertical: 'top',
-                          fontFamily: 'System',
-                        }}
-                        underlineColorAndroid="transparent"
-                      />
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={{ backgroundColor: '#181A20', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36, alignSelf: 'center', marginTop: 4 }}
-                    onPress={handleReject}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Submit</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                selectedNotification.data.status !== 'completed' && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 16, gap: 12 }}>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#181A20', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36 }}
-                      onPress={handlePay}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Pay</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#bbb', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36 }}
-                      onPress={() => setShowRejectReason(true)}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Reject</Text>
-                    </TouchableOpacity>
-                  </View>
-                )
-              )}
-            </>
-          ) : null}
-          <TouchableOpacity onPress={() => {
-            setSelectedNotification(null);
-            setShowRejectReason(false);
-            setRejectReason('');
-            setActionSuccess('');
-            setDetailsError('');
-          }} style={{ marginTop: 18, alignSelf: 'center' }}>
-            <Text style={{ color: '#E87A1D', fontWeight: 'bold', fontSize: 16 }}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  return (
-    <Modal
-      isVisible={notifModalVisible}
-      onBackdropPress={() => setNotifModalVisible(false)}
-      onSwipeComplete={() => setNotifModalVisible(false)}
-      swipeDirection={["down"]}
-      style={{ justifyContent: 'flex-end', margin: 0 }}
-      backdropTransitionOutTiming={0}
-      propagateSwipe
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      swipeThreshold={100}
-    >
-      <View style={styles.sheet}>
-        <View style={styles.dragIndicator} />
-        <View style={styles.headerRow}>
-          <Text style={styles.header}>Notifications</Text>
-        </View>
-        {modalLoading || loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
-            <ActivityIndicator size="large" color="#888" />
+            </View>
+          )}
+          {!loading && notifications.length > 0 && (
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={handleViewAll}
+            >
+              <Text style={styles.viewAllText}>View All Notifications</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.bottomCloseRow}>
+            <TouchableOpacity 
+              style={styles.bottomCloseBtn} 
+              onPress={() => setNotifModalVisible(false)}
+            >
+              <Ionicons name="close-circle-outline" size={40} color="#bbb" />
+            </TouchableOpacity>
           </View>
-        ) : (
-          <View style={{ flex: 1 }}>
-            {(newNotifications.length > 0 || oldNotifications.length > 0) ? (
-              renderFlatListWithLabels()
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📬</Text>
-                <Text style={styles.emptyTitle}>No notifications yet</Text>
-                <Text style={styles.emptyDesc}>Your notification will appear here once you&apos;ve received them.</Text>
-              </View>
-            )}
-          </View>
-        )}
-        {!loading && notifications.length > 0 && (
-          <TouchableOpacity 
-            style={styles.viewAllButton}
-            onPress={handleViewAll}
-          >
-            <Text style={styles.viewAllText}>View All Notifications</Text>
-          </TouchableOpacity>
-        )}
-        <View style={styles.bottomCloseRow}>
-          <TouchableOpacity 
-            style={styles.bottomCloseBtn} 
-            onPress={() => setNotifModalVisible(false)}
-          >
-            <Ionicons name="close-circle-outline" size={40} color="#bbb" />
-          </TouchableOpacity>
+          {renderDetailsModal()}
+          {showPaymentSuccess ? renderPaymentSuccessModal() : null}
         </View>
-        {renderDetailsModal()}
-      </View>
-    </Modal>
+      </Modal>
+    </>
   );
 }
 
@@ -540,12 +610,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderWidth: 0, // removed border
+    borderColor: 'transparent', // removed border
   },
   cardNew: {
-    borderColor: '#E87A1D',
-    shadowColor: '#E87A1D',
+        shadowColor: '#E87A1D',
     shadowOpacity: 0.10,
     elevation: 4,
   },
@@ -676,9 +745,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#fff',
-  },
+    borderWidth: 1,  },
   newLabelText: {
     color: '#fff',
     fontWeight: 'bold',
@@ -691,9 +758,7 @@ const styles = StyleSheet.create({
   categoryIconBox: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    borderWidth: 1.2,
-    borderColor: '#E87A1D',
-    width: 28,
+    borderWidth: 1.2,    width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -718,7 +783,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#E87A1D',
     width: 38,
     height: 38,
     alignItems: 'center',

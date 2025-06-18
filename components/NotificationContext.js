@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { TouchableOpacity } from 'react-native';
 
 export const NotificationContext = createContext({
   notifModalVisible: false,
@@ -194,9 +195,9 @@ const NotificationCard = ({ notif }) => {
   const isApproved = notif.status && notif.status.toLowerCase() === 'approved';
   let cardBorder = {};
   if (isCesspoolPaid || isComplaintCompleted) {
-    cardBorder = { borderColor: '#4CAF50', borderWidth: 2 };
+    cardBorder = {  borderWidth: 2 };
   } else if (isApproved) {
-    cardBorder = { borderColor: '#FFA000', borderWidth: 2 };
+    cardBorder = { borderWidth: 2 };
   }
   const cardStyle = [
     styles.card,

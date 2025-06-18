@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
+import LottieView from 'lottie-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ThemedText } from '../components/ThemedText';
 
 const getCategoryIcon = (category) => {
   switch (category) {
@@ -22,7 +25,6 @@ const getCategoryIcon = (category) => {
 export default function AllNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Use array of { booking_id, service_type } for seen notifications
   const [seenPairs, setSeenPairs] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -31,7 +33,29 @@ export default function AllNotifications() {
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const router = useRouter();
+
+  const playPaymentSuccessSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/sounds/payment_success.mp3')
+      );
+      await sound.playAsync();
+    } catch (_e) {
+      // Ignore sound errors
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setSelectedNotification(null);
+    setShowPaymentSuccess(true);
+    await playPaymentSuccessSound();
+    setTimeout(() => {
+      setShowPaymentSuccess(false);
+      fetchNotifications();
+    }, 1800);
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -185,7 +209,7 @@ export default function AllNotifications() {
                 <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                   {selectedNotification.data.complaint_images.map((img, idx) => (
                     <View key={idx} style={{ marginRight: 8 }}>
-                      <Image source={{ uri: `https://mobile.wemakesoftwares.com${img.image}` }} style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: '#eee' }} />
+                      <Image source={{ uri: `https://mobile.wemakesoftwares.com${img.image}` }} style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1}} />
                     </View>
                   ))}
                 </View>
@@ -198,7 +222,7 @@ export default function AllNotifications() {
                   <View style={{ width: 260, marginBottom: 8 }}>
                     <View style={{
                       borderWidth: 1,
-                      borderColor: '#181A20',
+
                       borderRadius: 10,
                       backgroundColor: '#fff',
                       padding: 0,
@@ -244,7 +268,7 @@ export default function AllNotifications() {
                         });
                         const json = await res.json();
                         if (json.status_code === 200 && json.status === true) {
-                          setActionSuccess('Rejection submitted!');
+                          setActionSuccess('Request rejected successfully!');
                           setShowRejectReason(false);
                           setRejectReason('');
                           await fetchNotifications();
@@ -262,7 +286,7 @@ export default function AllNotifications() {
                   </TouchableOpacity>
                 </>
               ) : (
-                selectedNotification.data.status !== 'completed' && (
+            selectedNotification.data.service_type !== 'complaints' && (
                   <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 16, gap: 12 }}>
                     <TouchableOpacity
                       style={{ backgroundColor: '#181A20', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 36 }}
@@ -277,7 +301,7 @@ export default function AllNotifications() {
                           console.log('Payment response:', json);
                           if (json.status_code === 200 && json.status === true) {
                             setActionSuccess('Payment successful!');
-                            await fetchNotifications();
+                            handlePaymentSuccess();
                           } else {
                             setActionSuccess((json && json.message) ? json.message : `Payment failed! [${res.status}]`);
                           }
@@ -318,13 +342,13 @@ export default function AllNotifications() {
   const renderNotificationCard = ({ item }) => {
     const isNew = !isSeen(item);
     const isPaid = item.payment_status && item.payment_status.toLowerCase() === 'completed';
-    const isRejected = item.payment_status && item.payment_status.toLowerCase() === 'rejected';
+    const isRejected = (item.payment_status && item.payment_status.toLowerCase() === 'rejected') || (item.status && item.status.toLowerCase() === 'rejected');
     const isComplaintCompleted = item.service_type === 'complaints' && item.category === 'booking' && item.status === 'completed';
     // If payment status is completed, show 'Paid' and do not open modal, and do not make card clickable
     if (isPaid || isComplaintCompleted) {
       return (
         <View
-          style={[styles.card, { borderColor: '#4CAF50', borderWidth: 2 }]}
+          style={[styles.card, {  borderWidth: 2 }]}
         >
           <View style={{ flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.iconCircleBox}>
@@ -348,7 +372,7 @@ export default function AllNotifications() {
     }
     if (isRejected) {
       return (
-        <View style={[styles.card, { borderColor: '#FF3B30', borderWidth: 2 }]}> 
+        <View style={[styles.card, { borderWidth: 2 }]}> 
           <View style={{ flex: 1, position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.iconCircleBox}>
               <Text style={styles.iconCircle}>{getCategoryIcon(item.category)}</Text>
@@ -372,8 +396,13 @@ export default function AllNotifications() {
     return (
       <TouchableOpacity
         onPress={() => {
-          if (isPaid || isComplaintCompleted) {
-            // Do not open modal
+          if (
+            isPaid ||
+            isComplaintCompleted ||
+            item.service_type === 'complaints' ||
+            item.category === 'booking'
+          ) {
+            // Do not open modal for paid, completed, complaints, or booking category (public request)
             return;
           }
           setSelectedNotification(item);
@@ -407,10 +436,12 @@ export default function AllNotifications() {
                         ? '#4CAF50'
                         : item.status.toLowerCase() === 'approved'
                         ? '#FFA000'
+                        : item.status.toLowerCase() === 'rejected'
+                        ? '#FF3B30'
                         : '#888',
                   },
                 ]}>
-                  <Text style={styles.statusPillTextModern}>{item.status.charAt(0).toUpperCase() + item.status.slice(1)}</Text>
+                  <Text style={styles.statusPillTextModern}>{item.status.toUpperCase()}</Text>
                 </View>
               )}
               <Text style={styles.cardDateModern}>{new Date(item.created_at).toLocaleString()}</Text>
@@ -465,6 +496,20 @@ export default function AllNotifications() {
         )
       )}
       {renderDetailsModal()}
+      {showPaymentSuccess && (
+        <Modal visible={true} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+            <LottieView
+              source={require('../assets/Animation - 1747848194852.json')}
+              autoPlay
+              loop={false}
+              style={{ width: 220, height: 220 }}
+              resizeMode="cover"
+            />
+            <ThemedText style={{ fontSize: 26, fontWeight: 'bold', color: '#19e38a', marginTop: 32, textAlign: 'center' }}>Payment Successful!</ThemedText>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -498,12 +543,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderWidth: 0, // removed border
+    borderColor: 'transparent', // removed border
     marginHorizontal: 12,
   },
   cardNew: {
-    borderColor: '#FFA000',
+
     shadowColor: '#FFA000',
     shadowOpacity: 0.12,
     elevation: 4,
@@ -559,10 +604,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statusPillModern: {
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    marginRight: 10,
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 10,
+    marginLeft: 8,
     alignSelf: 'center',
   },
   statusPillTextModern: {

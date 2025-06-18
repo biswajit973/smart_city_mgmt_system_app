@@ -316,7 +316,7 @@ export default function PublicWasteForm() {
             onChangeText={setAddress}
             error={errors.address}
             multiline
-            style={{ minHeight: 60, maxHeight: 200, textAlignVertical: 'top' }}
+            style={{ minHeight: 60, maxHeight: 200, textAlignVertical: 'top',marginTop:8, marginBottom: 8 }}
           />
           <Modal
             isVisible={mapModal}
